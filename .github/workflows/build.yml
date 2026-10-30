@@ -1,0 +1,134 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x86_64
+            runner: ubuntu-24.04
+            apt: musl-tools
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+            apt: musl-tools
+          - target: windows-x86_64
+            runner: ubuntu-24.04
+            apt: gcc-mingw-w64-x86-64
+          - target: macos-x86_64
+            runner: macos-15-intel
+          - target: macos-arm64
+            runner: macos-15
+    env:
+      TARGET: ${{ matrix.target }}
+      MACOSX_DEPLOYMENT_TARGET: '11.0'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        if: matrix.apt
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ${{ matrix.apt }}
+
+      - name: Show toolchain
+        run: |
+          uname -a
+          make --version | head -1
+          make flags
+          $(make -s flags | sed -n 's/.* CC=//p') --version | head -1 || true
+
+      - name: Build
+        run: make all
+
+      - name: Inspect linkage
+        run: scripts/inspect.sh "$TARGET"
+
+      - name: Smoke test
+        if: ${{ !startsWith(matrix.target, 'windows-') }}
+        run: scripts/smoke.sh "$TARGET"
+
+      - name: C module require
+        if: startsWith(matrix.target, 'macos-')
+        run: scripts/cmodule.sh "$TARGET"
+
+      - name: Collect musl notice
+        if: matrix.target == 'linux-x86_64'
+        run: |
+          mkdir -p notice
+          dpkg-query -W -f='musl ${Version}\n' musl > notice/musl-version.txt
+          cp /usr/share/doc/musl/copyright notice/musl-copyright.txt
+          cat notice/musl-version.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ matrix.target }}
+          path: dist/${{ matrix.target }}/
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.target == 'linux-x86_64'
+        with:
+          name: notice
+          path: notice/
+          if-no-files-found: error
+
+  smoke-windows:
+    needs: build
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: bin-windows-x86_64
+          path: dist/windows-x86_64
+      - name: Smoke test
+        shell: bash
+        run: scripts/smoke.sh windows-x86_64
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, smoke-windows]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bin-*
+          path: assets
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: notice
+          path: notice
+      - name: Assemble LICENSE
+        run: |
+          {
+            cat release/LICENSE.head
+            echo "--- $(cat notice/musl-version.txt): /usr/share/doc/musl/copyright ---"
+            echo
+            cat notice/musl-copyright.txt
+          } > assets/LICENSE
+      - name: Verify checksums
+        run: |
+          cd assets
+          for f in SHA256SUMS-*.txt; do sha256sum -c "$f"; done
+          ls -l
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" assets/* --verify-tag --title "$GITHUB_REF_NAME" --notes "Static PUC Lua lua/luac 5.1.5, 5.2.4, 5.3.6, 5.4.8 and 5.5.0. See README.md for build flags."
