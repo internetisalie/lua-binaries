@@ -107,7 +107,7 @@ jobs:
         run: scripts/smoke.sh windows-x86_64
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Runs on every push so the assembly is exercised before a tag; only the publish step is tag-gated.
     needs: [build, smoke-windows]
     runs-on: ubuntu-24.04
     permissions:
@@ -142,7 +142,18 @@ jobs:
           cd assets
           for f in SHA256SUMS-*.txt; do sha256sum -c "$f"; done
           ls -l
+      - name: Check LICENSE sections
+        run: |
+          grep -q 'Lua.org, PUC-Rio' assets/LICENSE
+          grep -q '^--- musl ' assets/LICENSE
+          grep -q '^--- mingw-w64-x86-64-dev ' assets/LICENSE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-preview
+          path: assets/
+          if-no-files-found: error
       - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" assets/* --verify-tag --title "$GITHUB_REF_NAME" --notes "Static PUC Lua lua/luac 5.1.5, 5.2.4, 5.3.6, 5.4.8 and 5.5.0. See README.md for build flags."
