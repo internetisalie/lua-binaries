@@ -2,8 +2,12 @@ Licenses for the binaries in this release
 =========================================
 
 The lua and luac executables are built from unmodified PUC-Rio Lua sources. The
-Linux executables are statically linked against musl libc. Both are distributed
-under the MIT license; their notices follow.
+Linux executables are statically linked against musl libc; Lua and musl are
+distributed under the MIT license. The Windows executables are statically
+linked against the MinGW-w64 runtime, whose complete copyright file follows the
+musl one at the end of this file. The macOS executables link only the system
+library. GCC's own runtime support code in the Linux and Windows executables is
+covered by the GCC Runtime Library Exception and needs no notice.
 
 
 Lua

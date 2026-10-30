@@ -78,10 +78,18 @@ jobs:
           path: dist/${{ matrix.target }}/
           if-no-files-found: error
 
+      - name: Collect MinGW-w64 notice
+        if: matrix.target == 'windows-x86_64'
+        run: |
+          mkdir -p notice
+          dpkg-query -W -f='mingw-w64-x86-64-dev ${Version}\n' mingw-w64-x86-64-dev > notice/mingw-version.txt
+          cp -L /usr/share/doc/mingw-w64-x86-64-dev/copyright notice/mingw-copyright.txt
+          cat notice/mingw-version.txt
+
       - uses: actions/upload-artifact@v4
-        if: matrix.target == 'linux-x86_64'
+        if: matrix.target == 'linux-x86_64' || matrix.target == 'windows-x86_64'
         with:
-          name: notice
+          name: notice-${{ matrix.target }}
           path: notice/
           if-no-files-found: error
 
@@ -113,8 +121,9 @@ jobs:
           merge-multiple: true
       - uses: actions/download-artifact@v4
         with:
-          name: notice
+          pattern: notice-*
           path: notice
+          merge-multiple: true
       - name: Assemble LICENSE
         run: |
           {
@@ -122,6 +131,11 @@ jobs:
             echo "--- $(cat notice/musl-version.txt): /usr/share/doc/musl/copyright ---"
             echo
             cat notice/musl-copyright.txt
+            echo
+            echo
+            echo "--- $(cat notice/mingw-version.txt): /usr/share/doc/mingw-w64-x86-64-dev/copyright ---"
+            echo
+            cat notice/mingw-copyright.txt
           } > assets/LICENSE
       - name: Verify checksums
         run: |
