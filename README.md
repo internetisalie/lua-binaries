@@ -9,10 +9,12 @@ oracle; usable by anyone.
 |---------|----------------------|----------------|----------------------|
 | 5.1.5, 5.2.4, 5.3.6, 5.4.8, 5.5.0 | musl, fully static | MinGW-w64, static | libSystem only |
 
-Release assets are named `lua<VV>-<os>-<arch>` and `luac<VV>-<os>-<arch>` (`.exe` on
-Windows), where `VV` is the major and minor version (`54` for 5.4.8). Each platform has a
-`SHA256SUMS-<os>-<arch>.txt`. `LICENSE` in a release carries the Lua and musl notices;
-this repository's own scripts are MIT (see `LICENSE`).
+A release has one archive per version and target, `lua-<version>-<os>-<arch>.tar.gz`
+(`.zip` on Windows), for example `lua-5.4.8-linux-x86_64.tar.gz`. Each holds
+`lua-<version>-<os>-<arch>/bin/lua`, `bin/luac` (`.exe` on Windows) and a `LICENSE` with the
+Lua, musl and MinGW-w64 notices. `SHA256SUMS` covers every archive. Archives are
+reproducible: fixed ownership, order and timestamps. This repository's own scripts are MIT
+(see `LICENSE`).
 
 ## How they are built
 

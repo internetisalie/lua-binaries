@@ -136,24 +136,35 @@ jobs:
             echo "--- $(cat notice/mingw-version.txt): /usr/share/doc/mingw-w64-x86-64-dev/copyright ---"
             echo
             cat notice/mingw-copyright.txt
-          } > assets/LICENSE
-      - name: Verify checksums
+          } > LICENSE
+      - name: Verify binary checksums
         run: |
           cd assets
           for f in SHA256SUMS-*.txt; do sha256sum -c "$f"; done
           ls -l
       - name: Check LICENSE sections
         run: |
-          grep -q 'Lua.org, PUC-Rio' assets/LICENSE
-          grep -q '^--- musl ' assets/LICENSE
-          grep -q '^--- mingw-w64-x86-64-dev ' assets/LICENSE
+          grep -q 'Lua.org, PUC-Rio' LICENSE
+          grep -q '^--- musl ' LICENSE
+          grep -q '^--- mingw-w64-x86-64-dev ' LICENSE
+      - name: Package archives
+        run: scripts/package.sh assets LICENSE release
+      - name: Check archives
+        run: |
+          cd release
+          sha256sum -c SHA256SUMS
+          tar -tvzf lua-5.4.8-linux-x86_64.tar.gz
+          unzip -l lua-5.4.8-windows-x86_64.zip
+          tar -xzf lua-5.4.8-linux-x86_64.tar.gz
+          lua-5.4.8-linux-x86_64/bin/luac -v
+          rm -rf lua-5.4.8-linux-x86_64
       - uses: actions/upload-artifact@v4
         with:
           name: release-preview
-          path: assets/
+          path: release/
           if-no-files-found: error
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" assets/* --verify-tag --title "$GITHUB_REF_NAME" --notes "Static PUC Lua lua/luac 5.1.5, 5.2.4, 5.3.6, 5.4.8 and 5.5.0. See README.md for build flags."
+        run: gh release create "$GITHUB_REF_NAME" release/* --verify-tag --title "$GITHUB_REF_NAME" --notes "Static PUC Lua lua/luac 5.1.5, 5.2.4, 5.3.6, 5.4.8 and 5.5.0. One archive per version and target, each holding bin/lua, bin/luac and LICENSE. See README.md for build flags."
